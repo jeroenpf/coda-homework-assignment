@@ -1,9 +1,10 @@
 package main
 
 import (
-	"coda-homework-assignment/internal/api"
 	"flag"
 	"log"
+
+	"github.com/jeroenpf/coda-homework-assignment/internal/api"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module coda-homework-assignment
+module github.com/jeroenpf/coda-homework-assignment
 
 go 1.23.2
 
