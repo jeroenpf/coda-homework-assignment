@@ -53,7 +53,7 @@ func NewServer(config Config) (*Server, error) {
 	hc := NewHealthChecker(backends, config.HealthCheckInterval)
 
 	srv := &http.Server{
-		Addr:         config.Port,
+		Addr:         ":" + config.Port,
 		ReadTimeout:  config.ReadTimeout,
 		WriteTimeout: config.WriteTimeout,
 		IdleTimeout:  config.IdleTimeout,
@@ -70,6 +70,8 @@ func NewServer(config Config) (*Server, error) {
 
 // Start starts the server
 func (s *Server) Start(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
 
 	// Starting the HTTP server
@@ -91,28 +93,25 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Handle shutdown signals
 	g.Go(func() error {
-		return s.handleSignals(ctx)
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+		select {
+		case sig := <-sigs:
+			slog.Info("Received signal", "signal", sig)
+			cancel()
+		case <-ctx.Done():
+			slog.Info("Context cancelled")
+		}
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), s.config.ShutdownTimeout)
+		defer shutdownCancel()
+		if err := s.srv.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("server failed to shutdown: %v", err)
+		}
+
+		return nil
 	})
 
 	return g.Wait()
-}
-
-func (s *Server) handleSignals(ctx context.Context) error {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case sig := <-sigs:
-		slog.Info("Received signal", "signal", sig)
-	case <-ctx.Done():
-		slog.Info("Context cancelled")
-	}
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-	if err := s.srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("server failed to shutdown: %v", err)
-	}
-
-	return nil
 }
