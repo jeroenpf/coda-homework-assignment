@@ -21,8 +21,9 @@ type Config struct {
 }
 
 func Run(cfg Config) error {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 
+	defer cancel()
 	// Set up the HTTP server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", withLogging(jsonEchoHandler()))
@@ -36,7 +37,7 @@ func Run(cfg Config) error {
 	}
 
 	// Start the API
-	g, ctx := errgroup.WithContext(ctx)
+	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		slog.Info(fmt.Sprintf("Starting API server on port %s", server.Addr))
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -51,15 +52,17 @@ func Run(cfg Config) error {
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 		select {
-		case <-ctx.Done():
-			slog.Info("shutting down gracefully after context cancellation")
 		case <-quit:
 			slog.Info("shutting down gracefully after termination signal")
+		case <-gCtx.Done():
+			slog.Info("shutting down gracefully after context cancellation")
 		}
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+		cancel()
 
+		slog.Info("initiating graceful shutdown")
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("server failed to shutdown: %v", err)
 		}

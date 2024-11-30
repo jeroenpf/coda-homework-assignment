@@ -1,0 +1,52 @@
+services:
+  api1:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8081:8080"
+    environment:
+      - SERVER_ID=api1
+    networks:
+      - loadbalancer-net
+
+  api2:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8082:8080"
+    environment:
+      - SERVER_ID=api2
+    networks:
+      - loadbalancer-net
+
+  api3:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8083:8080"
+    environment:
+      - SERVER_ID=api3
+    networks:
+      - loadbalancer-net
+
+  loadbalancer:
+    build:
+      context: .
+      dockerfile: Dockerfile.loadbalancer
+    ports:
+      - "8080:8080"
+    environment:
+      - BACKEND_SERVERS=http://api1:8080,http://api2:8080,http://api3:8080
+    depends_on:
+      - api1
+      - api2
+      - api3
+    networks:
+      - loadbalancer-net
+
+networks:
+  loadbalancer-net:
+    driver: bridge

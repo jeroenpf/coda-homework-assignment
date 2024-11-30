@@ -26,7 +26,7 @@ type Config struct {
 
 func DefaultConfig() Config {
 	return Config{
-		Port:                "3000",
+		Port:                "8080",
 		ReadTimeout:         15 * time.Second,
 		WriteTimeout:        15 * time.Second,
 		IdleTimeout:         60 * time.Second,
