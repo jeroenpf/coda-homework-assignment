@@ -110,8 +110,11 @@ func (s *Server) Start(ctx context.Context) error {
 			return fmt.Errorf("server failed to shutdown: %v", err)
 		}
 
+		slog.Info("Server shutdown completed")
 		return nil
 	})
 
-	return g.Wait()
+	err := g.Wait()
+	slog.Info("Server fully stopped - all goroutines cleaned up")
+	return err
 }

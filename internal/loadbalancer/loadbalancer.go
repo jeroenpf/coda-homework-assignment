@@ -52,8 +52,9 @@ func (l *LoadBalancer) NextBackend() (*Backend, error) {
 		return nil, errors.New("no backends available")
 	}
 
-	current := l.RRCounter.Add(1)
+	current := l.RRCounter.Load()
 	nextBackend := current % uint32(len(healthyBackends))
+	l.RRCounter.Add(1)
 	slog.Debug("selected backend",
 		"backend", healthyBackends[nextBackend].Addr,
 		"counter", current,
