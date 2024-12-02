@@ -1,6 +1,6 @@
 # HTTP Round Robin Load Balancer
 
-A high-performance Round Robin load balancer and API server implementation in Go, featuring health checks, graceful shutdown, and comprehensive testing.
+A high-performance Round Robin load balancer and API server implementation in Go, with health checks, graceful shutdown, and unit testing.
 
 ## Features
 
