@@ -1,58 +1,112 @@
-# HTTP Round Robin API
-This repository contains a simple Round Robin load balancer and echo API server written in Golang.
+# HTTP Round Robin Load Balancer
 
-## How to use
+A high-performance Round Robin load balancer and API server implementation in Go, featuring health checks, graceful shutdown, and comprehensive testing.
 
-### Run the servers
-For convenience, docker-compose is used to run 3 backend servers and the Round Robin loadbalancer.
+## Features
 
-Simply run `docker-compose up` - this starts 3 api servers and 1 Round Robin loadbalancer. 
-The balancer is exposed on port 8080.
+- Round Robin load balancing with health checking
+- Multiple backend support with automatic failover
+- Health monitoring with configurable check intervals
+- Graceful shutdown handling
+- Docker support for easy testing
+- Test coverage
+- JSON echo API server implementation
 
-### Access endpoint
-The backends expose an endpoint that accepts a `POST` request. You can request this through the loadbalancer:
+## Architecture
 
+The project consists of two main components:
+
+### Load Balancer
+- Distributes incoming requests across multiple backends using Round Robin algorithm
+- Monitors backend health and removes unhealthy instances from rotation
+- Provides automatic failover when backends become unavailable
+- Implements graceful shutdown with configurable timeout
+
+### Echo API Server
+- Accepts POST requests with JSON payloads
+- Validates incoming JSON content
+- Returns exact copy of received JSON payload
+- Includes health check endpoint (`/healthz`)
+- Supports multiple concurrent instances
+
+## Getting Started
+
+### Prerequisites
+- Go 1.23 or higher
+- Docker and Docker Compose (optional)
+
+### Running with Docker Compose
+
+The easiest way to run the complete setup is using Docker Compose:
+
+```bash
+docker-compose up
+```
+
+This will start:
+- 3 API server instances (ports 8081-8083)
+- 1 Load balancer instance (port 8080)
+
+### Running Manually
+
+1. Start multiple API servers:
+```bash
+make start-backends
+```
+
+2. Start the load balancer:
+```bash
+make start-loadbalancer
+```
+
+To stop all services:
+```bash
+make stop-all
+```
+
+## Testing the Setup
+
+1. Send a test request through the load balancer:
 ```bash
 curl -X POST -H "Content-Type: application/json" \
 -d '{"game":"Mobile Legends", "gamerID":"GYUTDTE", "points":20}' \
 http://localhost:8080
 ```
 
-### Running without docker
-A makefile has been included that builds and runs backend servers
+2. Check health endpoint:
+```bash
+curl http://localhost:8080/healthz
+```
 
-To start 3 backend servers on ports 8081, 8082 and 8083 and a loadbalancer on port 8080, run the following:
+## Configuration
 
-`make start-all`
+### Load Balancer Configuration
+- `port`: Port to listen on (default: 8080, configurable via command line flag)
+- `BACKEND_SERVERS`: Comma-separated list of backend URLs (must be set as an environment variable)
 
-And to stop it all:
+### API Server Configuration
+- `port`: Port to listen on (configurable via command line flag)
 
-`make stop-all`
+## Testing
 
-## Running tests
-Tests are included and can be run as follows: `go test ./...` - these tests cover the round robin logic, loadbalancing and api backends.
+Run the test suite:
+```bash
+go test ./...
+```
 
-Additionally, you could run ab benchmarks to stress-test the application.
+The tests cover:
+- Round Robin logic
+- Backend health checking
+- Failover scenarios
+- API server functionality
+- Load balancer behavior
 
-## Description
+## Future Improvements
 
-The project consists of two programs: 
-
-### API
-The API exposes an echo endpoint (`POST /` ) that accepts a JSON payload and returns 
-the same payload in the response. 
-
-Additionally, a health endpoint ( `GET /healthz` ) is exposed that can
-be used to get the server health. For now, this is a dummy endpoint that always returns a HTTP OK 200 response.
-In a real-world scenario, the health endpoint would take into consideration various metrics (e.g. db connectivity) to determine its health.
-
-### Round Robin Loadbalancer
-The loadbalancer expects comma separated backends to be defined via the `BACKEND_SERVERS` environment variable.
-The loadbalancer also checks the health of the backends periodically and only forwards requests to recently healthy backends.
-
-## Considerations
-
-- Security: the loadbalancer and API currently supports only HTTP. Ideally, TLS should be enforced.
-- We could improve this by implementing a weighted variant of round robin that takes into account the capacity and performance of the backends and dynamically adjusts the weights.
-- We could add a circuit-breaker mechanism that further prevents sending traffic to failing backends
-- Collect metrics such as active connections, backend health, failed requests, etc. For display in a monitoring tool such as prometheus.
+Potential enhancements that could be added:
+1. Metrics collection so we can use tools such as Prometheus
+2. Circuit breaker implementation to handle failing backends
+3. Weighted round robin support
+4. TLS support
+5. Dynamic backend registration/removal
+6. More advanced health checks, now it always returns a HTTP OK 200 response
