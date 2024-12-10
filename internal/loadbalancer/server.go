@@ -11,12 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hashicorp/consul/api"
+	"github.com/jeroenpf/coda-homework-assignment/internal/servicediscovery"
 	"golang.org/x/sync/errgroup"
 )
 
 type Config struct {
 	Port                string
-	BackendUrls         []string
 	ReadTimeout         time.Duration
 	WriteTimeout        time.Duration
 	IdleTimeout         time.Duration
@@ -39,18 +40,20 @@ type Server struct {
 	config Config
 	srv    *http.Server
 	lb     *LoadBalancer
-	hc     *HealthChecker
 }
 
 // NewServer creates a new serve
 func NewServer(config Config) (*Server, error) {
-	backends, err := NewBackends(config.BackendUrls)
+	consulConfig := api.DefaultConfig()
+	consulConfig.Address = "localhost:8500"
+
+	consulClient, err := api.NewClient(consulConfig)
 	if err != nil {
-		return nil, fmt.Errorf("could not create backends: %w", err)
+		return nil, fmt.Errorf("could not create consul client: %w", err)
 	}
 
-	lb := NewLoadBalancer(backends)
-	hc := NewHealthChecker(backends, config.HealthCheckInterval)
+	watcher := servicediscovery.NewConsulServiceWatcher(consulClient)
+	lb := NewLoadBalancer(watcher, "backend")
 
 	srv := &http.Server{
 		Addr:         ":" + config.Port,
@@ -64,7 +67,6 @@ func NewServer(config Config) (*Server, error) {
 		config: config,
 		srv:    srv,
 		lb:     lb,
-		hc:     hc,
 	}, nil
 }
 
@@ -74,20 +76,16 @@ func (s *Server) Start(ctx context.Context) error {
 	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
 
+	if err := s.lb.StartServiceWatcher(); err != nil {
+		return fmt.Errorf("could not start service watcher: %w", err)
+	}
+
 	// Starting the HTTP server
 	g.Go(func() error {
 		slog.Info("starting loadbalancer", "addr", s.srv.Addr)
 		if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("server failed to start: %w", err)
 		}
-		return nil
-	})
-
-	// Start checking backend health
-	g.Go(func() error {
-		s.hc.Start()
-		<-ctx.Done()
-		s.hc.Stop()
 		return nil
 	})
 
@@ -102,6 +100,11 @@ func (s *Server) Start(ctx context.Context) error {
 			cancel()
 		case <-ctx.Done():
 			slog.Info("Context cancelled")
+		}
+
+		// Stop the service serviceWatcher
+		if err := s.lb.StopServiceWatcher(); err != nil {
+			slog.Error("failed to stop load balancer", "error", err)
 		}
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), s.config.ShutdownTimeout)

@@ -13,7 +13,11 @@ func main() {
 	flag.Parse()
 
 	cfg := api.Config{
-		Port: port,
+		Port:        port,
+		Environment: "development",
+		ConsulConfig: api.ConsulConfig{
+			Address: "localhost:8500",
+		},
 	}
 
 	if err := api.Run(cfg); err != nil {
